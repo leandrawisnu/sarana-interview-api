@@ -69,7 +69,7 @@ app.post("/ask/stream", async (req: Request, res: Response) => {
     for await (const chunk of response) {
       res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
     }
-    res.write("data: \n\n");
+    res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
     res.write(`data: ${JSON.stringify({ error: error.message || "Internal server error" })}\n\n`);
