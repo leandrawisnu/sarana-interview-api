@@ -30,7 +30,7 @@ async function getGeminiAnswer(question: string) {
 }
 
 app.get("/health", (req: Request, res: Response) => {
-  res.status(200).send("healthy");
+  res.status(200).send("Healthy");
 });
 
 app.post("/ask", async (req: Request, res: Response) => {
