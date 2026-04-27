@@ -1,6 +1,6 @@
 # Sarana Interview API
 
-Express + Gemini API for interview questions.
+Express + Gemini API for asking general questions.
 
 ## Setup
 
