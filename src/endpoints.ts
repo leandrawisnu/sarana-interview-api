@@ -12,14 +12,36 @@ app.post("/ask", async (req: Request, res: Response) => {
       .json({ error: "Request body must be { question: string }" });
   }
   const { question } = req.body;
+
   try {
+    const systemPrompt =
+      "Kamu adalah LLM yang digunakan untuk listing merek-merek dari sebuah object, misal user input `tas`, maka jawab dengan contoh-contoh mereknya. Jika input user bukan sebuah barang dan kamu tidak paham yang dimaksud user coba output tidak ada saja, input user: ";
+
     const response = await ai.models.generateContent({
       model: model,
-      contents: question,
+      contents: systemPrompt + question,
+      config: {
+        temperature: 0.0,
+        responseMimeType: "application/json",
+        responseJsonSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              Brand: { type: "string" }
+            },
+            required: ["Brand"]
+          },
+        } as any,
+      }
     });
 
-    const answer = response.text;
-    res.json({ answer });
+    if (response.text) {
+      res.send(JSON.parse(response.text))
+    } else {
+      res.send("Empty response")
+    }
+    
   } catch (error) {
     const errorMessage = parseGeminiError(error);
     console.error("Gemini API error:", errorMessage);
