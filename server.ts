@@ -25,20 +25,20 @@ app.use(
       try {
         JSON.parse(buf.toString());
       } catch (e) {
-        throw new SyntaxError("Invalid JSON");
+        throw new Error("Invalid JSON");
       }
     },
   }),
 );
 
 // Error handler for JSON parsing errors
-app.use(
-  (_err: SyntaxError, _req: Request, res: Response, _next: NextFunction) => {
-    return res
-      .status(400)
-      .json({ error: "Invalid JSON format in request body" });
-  },
-);
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err.message === "Invalid JSON") {
+    return res.status(400).json({ error: "Invalid JSON format in request body" });
+  }
+  console.error("Unexpected error:", err);
+  return res.status(500).json({ error: "Internal server error" });
+});
 
 const port = 3000;
 
