@@ -112,7 +112,7 @@ Konfigurasi TypeScript compiler yang menentukan bagaimana kode TypeScript dikomp
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["server.ts"]
+  "include": ["src/**/*"]
 }
 ```
 
@@ -127,7 +127,7 @@ Konfigurasi TypeScript compiler yang menentukan bagaimana kode TypeScript dikomp
 | `skipLibCheck` | `true` | Melewati pengecekan tipe pada file `.d.ts` di `node_modules`, mempercepat kompilasi |
 | `forceConsistentCasingInFileNames` | `true` | Memastikan konsistensi huruf besar/kecil pada nama file saat import, mencegah bug di sistem file case-insensitive (Windows) |
 
-> **Catatan:** `"include": ["server.ts"]` masih mengarah ke file lama di root. Perlu diupdate ke `["src/**/*"]` agar mencakup semua file di folder `src/`.
+> `"include": ["src/**/*"]` — TypeScript hanya mengkompilasi file di dalam folder `src/`, mengabaikan file lain di root seperti konfigurasi.
 
 ---
 
@@ -251,6 +251,80 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 ### `src/endpoints.ts`
 
 Mendefinisikan semua route handler. Mengimpor `app`, `ai`, `model`, dan `isQuestionBody` dari `setup.ts`.
+
+```typescript
+import { Request, Response } from "express";
+import { app, ai, model, isQuestionBody } from "./setup";
+```
+
+**GET /health**
+
+```typescript
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).send("Healthy");
+});
+```
+
+**POST /ask**
+
+```typescript
+app.post("/ask", async (req: Request, res: Response) => {
+  if (!isQuestionBody(req.body)) {
+    return res
+      .status(400)
+      .json({ error: "Request body must be { question: string }" });
+  }
+  const { question } = req.body;
+  try {
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: question,
+    });
+
+    const answer = response.text;
+    res.json({ answer });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Gemini API error:", errorMessage);
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+```
+
+**POST /ask/stream**
+
+```typescript
+app.post("/ask/stream", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  if (!isQuestionBody(req.body)) {
+    return res
+      .status(400)
+      .json({ error: "Request body must be { question: string }" });
+  }
+  const { question } = req.body;
+  try {
+    const response = await ai.models.generateContentStream({
+      model: model,
+      contents: question,
+    });
+
+    for await (const chunk of response) {
+      res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+    }
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
+    res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
+    res.end();
+  }
+});
+```
 
 ---
 
