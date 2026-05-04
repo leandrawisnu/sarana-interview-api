@@ -22,6 +22,25 @@ export const model = process.env.GEMINI_MODEL;
 
 export const ai = new GoogleGenAI({ apiKey });
 
+export function parseGeminiError(error: unknown): string {
+  if (!(error instanceof Error)) return "Internal server error";
+
+  try {
+    const parsed = JSON.parse(error.message);
+    if (typeof parsed?.error?.message === "string") {
+      try {
+        const inner = JSON.parse(parsed.error.message);
+        return inner?.error?.message ?? parsed.error.message;
+      } catch {
+        return parsed.error.message;
+      }
+    }
+    return parsed?.error?.message ?? error.message;
+  } catch {
+    return error.message;
+  }
+}
+
 export interface QuestionBody {
   question: string;
 }

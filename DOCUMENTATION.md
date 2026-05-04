@@ -1,5 +1,7 @@
 # Sarana Interview API — Dokumentasi
 
+## Muhammad Leandra Wisnu | 4 Mei 2026
+
 > REST API yang dibangun menggunakan **Express** dan **TypeScript** sebagai jembatan antara client dan **Google Gemini AI**. Mendukung dua mode respons: jawaban langsung dan streaming real-time.
 
 ---
@@ -45,6 +47,7 @@ Berisi metadata project, script, dan daftar dependency.
 ```
 
 **Scripts**
+
 - `start` — menjalankan server langsung dari TypeScript menggunakan `ts-node`, tanpa perlu compile ke JavaScript terlebih dahulu
 
 **Dependencies** (dibutuhkan saat runtime)
@@ -71,6 +74,7 @@ Berisi metadata project, script, dan daftar dependency.
 File yang di-generate otomatis oleh npm. Mencatat versi **exact** dari setiap dependency dan sub-dependency yang terinstall, termasuk hash integritas untuk verifikasi keamanan.
 
 Contoh entri:
+
 ```json
 "node_modules/express": {
   "version": "5.2.1",
@@ -118,14 +122,14 @@ Konfigurasi TypeScript compiler yang menentukan bagaimana kode TypeScript dikomp
 
 **Penjelasan setiap opsi:**
 
-| Opsi | Nilai | Penjelasan |
-|------|-------|------------|
-| `target` | `ES2020` | Output JavaScript yang dihasilkan menggunakan sintaks ES2020, mendukung fitur seperti `async/await`, `for await...of`, optional chaining |
-| `module` | `commonjs` | Sistem modul yang digunakan adalah CommonJS (`require`/`module.exports`), sesuai dengan Node.js |
-| `strict` | `true` | Mengaktifkan semua pengecekan tipe yang ketat: `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes`, dll. Mencegah penggunaan `any` secara implisit |
-| `esModuleInterop` | `true` | Memungkinkan import default dari modul CommonJS seperti `import express from 'express'` tanpa error |
-| `skipLibCheck` | `true` | Melewati pengecekan tipe pada file `.d.ts` di `node_modules`, mempercepat kompilasi |
-| `forceConsistentCasingInFileNames` | `true` | Memastikan konsistensi huruf besar/kecil pada nama file saat import, mencegah bug di sistem file case-insensitive (Windows) |
+| Opsi                               | Nilai      | Penjelasan                                                                                                                                                |
+| ---------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`                           | `ES2020`   | Output JavaScript yang dihasilkan menggunakan sintaks ES2020, mendukung fitur seperti `async/await`, `for await...of`, optional chaining                  |
+| `module`                           | `commonjs` | Sistem modul yang digunakan adalah CommonJS (`require`/`module.exports`), sesuai dengan Node.js                                                           |
+| `strict`                           | `true`     | Mengaktifkan semua pengecekan tipe yang ketat: `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes`, dll. Mencegah penggunaan `any` secara implisit |
+| `esModuleInterop`                  | `true`     | Memungkinkan import default dari modul CommonJS seperti `import express from 'express'` tanpa error                                                       |
+| `skipLibCheck`                     | `true`     | Melewati pengecekan tipe pada file `.d.ts` di `node_modules`, mempercepat kompilasi                                                                       |
+| `forceConsistentCasingInFileNames` | `true`     | Memastikan konsistensi huruf besar/kecil pada nama file saat import, mencegah bug di sistem file case-insensitive (Windows)                               |
 
 > `"include": ["src/**/*"]` — TypeScript hanya mengkompilasi file di dalam folder `src/`, mengabaikan file lain di root seperti konfigurasi.
 
@@ -201,6 +205,41 @@ if (!process.env.GEMINI_MODEL) {
 export const ai = new GoogleGenAI({ apiKey });
 ```
 
+**`parseGeminiError`** — Gemini SDK membungkus error dalam beberapa lapisan JSON yang di-nest. Fungsi ini mem-parse lapisan tersebut untuk mengekstrak pesan error yang sebenarnya. Diletakkan di `setup.ts` agar bisa dipakai oleh semua endpoint.
+
+```typescript
+export function parseGeminiError(error: unknown): string {
+  if (!(error instanceof Error)) return "Internal server error";
+
+  try {
+    const parsed = JSON.parse(error.message);
+    if (typeof parsed?.error?.message === "string") {
+      try {
+        const inner = JSON.parse(parsed.error.message);
+        return inner?.error?.message ?? parsed.error.message;
+      } catch {
+        return parsed.error.message;
+      }
+    }
+    return parsed?.error?.message ?? error.message;
+  } catch {
+    return error.message;
+  }
+}
+```
+
+Tanpa fungsi ini, error dari Gemini akan terlihat seperti:
+
+```
+{"error":"{\"error\":{\"message\":\"{\\n  \\\"error\\\": ...
+```
+
+Dengan fungsi ini, error menjadi:
+
+```
+{"error":"API key not valid. Please pass a valid API key."}
+```
+
 **Type guard** — memvalidasi bahwa request body sesuai dengan `{ question: string }` secara runtime, sekaligus mempersempit tipe TypeScript sehingga `req.body.question` bisa diakses tanpa error kompilasi.
 
 ```typescript
@@ -239,7 +278,9 @@ app.use(
 ```typescript
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   if (err.message === "Invalid JSON") {
-    return res.status(400).json({ error: "Invalid JSON format in request body" });
+    return res
+      .status(400)
+      .json({ error: "Invalid JSON format in request body" });
   }
   console.error("Unexpected error:", err);
   return res.status(500).json({ error: "Internal server error" });
@@ -250,12 +291,14 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 ### `src/endpoints.ts`
 
-Mendefinisikan semua route handler. Mengimpor `app`, `ai`, `model`, dan `isQuestionBody` dari `setup.ts`.
+Mendefinisikan semua route handler. Mengimpor `app`, `ai`, `model`, `isQuestionBody`, dan `parseGeminiError` dari `setup.ts`.
 
 ```typescript
 import { Request, Response } from "express";
-import { app, ai, model, isQuestionBody } from "./setup";
+import { app, ai, model, isQuestionBody, parseGeminiError } from "./setup";
 ```
+
+---
 
 **GET /health**
 
@@ -271,7 +314,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.post("/ask", async (req: Request, res: Response) => {
   if (!isQuestionBody(req.body)) {
     return res
-      .status(400)
+      .status(422)
       .json({ error: "Request body must be { question: string }" });
   }
   const { question } = req.body;
@@ -284,8 +327,7 @@ app.post("/ask", async (req: Request, res: Response) => {
     const answer = response.text;
     res.json({ answer });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = parseGeminiError(error);
     console.error("Gemini API error:", errorMessage);
     return res.status(500).json({ error: errorMessage });
   }
@@ -296,15 +338,12 @@ app.post("/ask", async (req: Request, res: Response) => {
 
 ```typescript
 app.post("/ask/stream", async (req: Request, res: Response) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
   if (!isQuestionBody(req.body)) {
     return res
-      .status(400)
+      .status(422)
       .json({ error: "Request body must be { question: string }" });
   }
+
   const { question } = req.body;
   try {
     const response = await ai.models.generateContentStream({
@@ -312,16 +351,19 @@ app.post("/ask/stream", async (req: Request, res: Response) => {
       contents: question,
     });
 
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
     for await (const chunk of response) {
       res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
     }
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Internal server error";
-    res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
-    res.end();
+    const errorMessage = parseGeminiError(error);
+    console.error("Gemini API error:", errorMessage);
+    return res.status(500).json({ error: errorMessage });
   }
 });
 ```
@@ -335,6 +377,7 @@ app.post("/ask/stream", async (req: Request, res: Response) => {
 Endpoint untuk mengecek apakah server berjalan.
 
 **Response**
+
 ```
 200 Healthy
 ```
@@ -346,6 +389,7 @@ Endpoint untuk mengecek apakah server berjalan.
 Mengirim pertanyaan ke Gemini dan mengembalikan jawaban lengkap sekaligus.
 
 **Request**
+
 ```json
 {
   "question": "Apa itu AI?"
@@ -353,6 +397,7 @@ Mengirim pertanyaan ke Gemini dan mengembalikan jawaban lengkap sekaligus.
 ```
 
 **Response**
+
 ```json
 {
   "answer": "AI adalah..."
@@ -361,11 +406,11 @@ Mengirim pertanyaan ke Gemini dan mengembalikan jawaban lengkap sekaligus.
 
 **Error response**
 
-| Status | Penyebab |
-|--------|----------|
-| 422 | Body bukan `{ question: string }` |
-| 400 | Body bukan JSON valid |
-| 500 | Error dari Gemini API |
+| Status | Penyebab                          |
+| ------ | --------------------------------- |
+| 422    | Body bukan `{ question: string }` |
+| 400    | Body bukan JSON valid             |
+| 500    | Error dari Gemini API             |
 
 ---
 
@@ -374,6 +419,7 @@ Mengirim pertanyaan ke Gemini dan mengembalikan jawaban lengkap sekaligus.
 Mengirim pertanyaan ke Gemini dan mengalirkan jawaban secara bertahap menggunakan **Server-Sent Events (SSE)**. Setiap potongan teks dikirim begitu tersedia tanpa menunggu jawaban selesai sepenuhnya.
 
 **Request**
+
 ```json
 {
   "question": "Apa itu AI?"
@@ -381,6 +427,7 @@ Mengirim pertanyaan ke Gemini dan mengalirkan jawaban secara bertahap menggunaka
 ```
 
 **Response**
+
 ```
 data: {"text": "AI"}
 data: {"text": " adalah..."}
@@ -391,11 +438,11 @@ Sinyal `data: [DONE]` menandakan stream telah selesai.
 
 **Error response**
 
-| Status | Penyebab |
-|--------|----------|
-| 422 | Body bukan `{ question: string }` |
-| 400 | Body bukan JSON valid |
-| 500 | Error dari Gemini API (dikirim sebagai SSE event) |
+| Status | Penyebab                                          |
+| ------ | ------------------------------------------------- |
+| 422    | Body bukan `{ question: string }`                 |
+| 400    | Body bukan JSON valid                             |
+| 500    | Error dari Gemini API (dikirim sebagai SSE event) |
 
 ---
 
@@ -430,4 +477,4 @@ curl -X POST http://localhost:3000/ask \
 
 ## Hasil Pengujian
 
-*(Tambahkan screenshot atau output di sini)*
+_(Tambahkan screenshot atau output di sini)_
