@@ -33,11 +33,14 @@ app.use(
 
 // Error handler for JSON parsing errors
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  if (err.message === "Invalid JSON") {
-    return res.status(400).json({ error: "Invalid JSON format in request body" });
+  if (err instanceof SyntaxError) {
+    return res
+      .status(400)
+      .json({ error: "Invalid JSON format in request body" });
   }
-  console.error("Unexpected error:", err);
-  return res.status(500).json({ error: "Internal server error" });
+  return res
+      .status(500)
+      .json({ error: "Unknown error" });
 });
 
 const port = 3000;
