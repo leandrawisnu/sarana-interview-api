@@ -289,7 +289,7 @@ Mengirim pertanyaan ke Gemini dan mengembalikan jawaban lengkap sekaligus.
 
 | Status | Penyebab |
 |--------|----------|
-| 400 | Body bukan `{ question: string }` |
+| 422 | Body bukan `{ question: string }` |
 | 400 | Body bukan JSON valid |
 | 500 | Error dari Gemini API |
 
@@ -319,7 +319,7 @@ Sinyal `data: [DONE]` menandakan stream telah selesai.
 
 | Status | Penyebab |
 |--------|----------|
-| 400 | Body bukan `{ question: string }` |
+| 422 | Body bukan `{ question: string }` |
 | 400 | Body bukan JSON valid |
 | 500 | Error dari Gemini API (dikirim sebagai SSE event) |
 

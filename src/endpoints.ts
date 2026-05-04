@@ -8,7 +8,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.post("/ask", async (req: Request, res: Response) => {
   if (!isQuestionBody(req.body)) {
     return res
-      .status(400)
+      .status(422)
       .json({ error: "Request body must be { question: string }" });
   }
   const { question } = req.body;
@@ -29,15 +29,16 @@ app.post("/ask", async (req: Request, res: Response) => {
 });
 
 app.post("/ask/stream", async (req: Request, res: Response) => {
+  if (!isQuestionBody(req.body)) {
+    return res
+      .status(422)
+      .json({ error: "Request body must be { question: string }" });
+  }
+
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  if (!isQuestionBody(req.body)) {
-    return res
-      .status(400)
-      .json({ error: "Request body must be { question: string }" });
-  }
   const { question } = req.body;
   try {
     const response = await ai.models.generateContentStream({
