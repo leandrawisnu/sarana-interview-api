@@ -24,7 +24,7 @@ const model = process.env.GEMINI_MODEL;
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-app.get("/health", (req: Request, res: Response) => {
+app.get("/health", (_: Request, res: Response) => {
   res.status(200).send("Healthy");
 });
 
