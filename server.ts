@@ -5,6 +5,24 @@ import { Request, Response, NextFunction } from "express";
 const express = require("express");
 const app = express();
 
+const port = 3000;
+
+if (!process.env.GEMINI_API_KEY) {
+  console.error("Error: GEMINI_API_KEY not set in .env");
+  process.exit(1);
+}
+
+if (!process.env.GEMINI_MODEL) {
+  console.error("Error: GEMINI_MODEL not set in .env");
+  process.exit(1);
+}
+
+const apiKey = process.env.GEMINI_API_KEY;
+const model = process.env.GEMINI_MODEL;
+
+const ai = new GoogleGenAI({ apiKey: apiKey });
+
+
 interface QuestionBody {
   question: string;
 }
@@ -42,23 +60,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
       .status(500)
       .json({ error: "Unknown error" });
 });
-
-const port = 3000;
-
-if (!process.env.GEMINI_API_KEY) {
-  console.error("Error: GEMINI_API_KEY not set in .env");
-  process.exit(1);
-}
-
-if (!process.env.GEMINI_MODEL) {
-  console.error("Error: GEMINI_MODEL not set in .env");
-  process.exit(1);
-}
-
-const apiKey = process.env.GEMINI_API_KEY;
-const model = process.env.GEMINI_MODEL;
-
-const ai = new GoogleGenAI({ apiKey: apiKey });
 
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).send("Healthy");
