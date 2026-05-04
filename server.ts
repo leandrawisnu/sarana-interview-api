@@ -1,11 +1,44 @@
 import "dotenv/config";
 import { GoogleGenAI } from "@google/genai";
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 
 const express = require("express");
 const app = express();
 
-app.use(express.json());
+interface QuestionBody {
+  question: string;
+}
+
+function isQuestionBody(body: unknown): body is QuestionBody {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "question" in body &&
+    typeof (body as QuestionBody).question === "string"
+  );
+}
+
+// JSON parsing with error handling
+app.use(
+  express.json({
+    verify: (_req: Request, _res: Response, buf: Buffer, _encoding: string) => {
+      try {
+        JSON.parse(buf.toString());
+      } catch (e) {
+        throw new SyntaxError("Invalid JSON");
+      }
+    },
+  }),
+);
+
+// Error handler for JSON parsing errors
+app.use(
+  (_err: SyntaxError, _req: Request, res: Response, _next: NextFunction) => {
+    return res
+      .status(400)
+      .json({ error: "Invalid JSON format in request body" });
+  },
+);
 
 const port = 3000;
 
@@ -24,16 +57,17 @@ const model = process.env.GEMINI_MODEL;
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-app.get("/health", (_: Request, res: Response) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.status(200).send("Healthy");
 });
 
 app.post("/ask", async (req: Request, res: Response) => {
-  const body = req.body || {};
-  const question = body.question;
-  if (!question) {
-    return res.status(400).json({ error: "Question is required" });
+  if (!isQuestionBody(req.body)) {
+    return res
+      .status(400)
+      .json({ error: "Request body must be { question: string }" });
   }
+  const { question } = req.body;
   try {
     const response = await ai.models.generateContent({
       model: model,
@@ -42,9 +76,11 @@ app.post("/ask", async (req: Request, res: Response) => {
 
     const answer = response.text;
     res.json({ answer });
-  } catch (error: any) {
-    console.error("Gemini API error:", error.message);
-    throw error;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Gemini API error:", errorMessage);
+    return res.status(500).json({ error: errorMessage });
   }
 });
 
@@ -53,11 +89,12 @@ app.post("/ask/stream", async (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  const body = req.body || {};
-  const question = body.question;
-  if (!question) {
-    return res.status(400).json({ error: "Question is required" });
+  if (!isQuestionBody(req.body)) {
+    return res
+      .status(400)
+      .json({ error: "Request body must be { question: string }" });
   }
+  const { question } = req.body;
   try {
     const response = await ai.models.generateContentStream({
       model: model,
@@ -69,10 +106,10 @@ app.post("/ask/stream", async (req: Request, res: Response) => {
     }
     res.write("data: [DONE]\n\n");
     res.end();
-  } catch (error: any) {
-    res.write(
-      `data: ${JSON.stringify({ error: error.message || "Internal server error" })}\n\n`,
-    );
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
+    res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
     res.end();
   }
 });
