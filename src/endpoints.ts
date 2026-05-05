@@ -15,7 +15,7 @@ app.post("/ask", async (req: Request, res: Response) => {
 
   try {
     const systemPrompt =
-      "Kamu adalah LLM yang digunakan untuk listing merek-merek dari sebuah object, misal user input `tas`, maka jawab dengan contoh-contoh mereknya. Jika input user bukan sebuah barang dan kamu tidak paham yang dimaksud user coba output tidak ada saja, input user: ";
+      "kamu adalah llm yang digunakan untuk listing 5 merek-merek teratas dari sebuah object, misal user input `tas`, maka jawab dengan contoh-contoh mereknya. Jika input user bukan sebuah barang dan kamu tidak paham yang dimaksud user coba output array kosongan saja, input user: ";
 
     const response = await ai.models.generateContent({
       model: model,
@@ -26,12 +26,8 @@ app.post("/ask", async (req: Request, res: Response) => {
         responseJsonSchema: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              Brand: { type: "string" }
-            },
-            required: ["Brand"]
-          },
+            type: "string"
+          }
         } as any,
       }
     });
@@ -41,7 +37,7 @@ app.post("/ask", async (req: Request, res: Response) => {
     } else {
       res.send("Empty response")
     }
-    
+
   } catch (error) {
     const errorMessage = parseGeminiError(error);
     console.error("Gemini API error:", errorMessage);
